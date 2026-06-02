@@ -1028,6 +1028,10 @@ public sealed class OpenClawChatDataProvider : IChatDataProvider
                 _locallyInitiatedThreads.Clear();
                 _localSentTexts.Clear();
                 _historyRetryCount.Clear();
+
+                // Reset keyless-event diagnostic so a fresh reconnect to a
+                // still-broken gateway surfaces the notification again.
+                Volatile.Write(ref _keylessEventDiagnosticRaised, 0);
             }
             else
             {

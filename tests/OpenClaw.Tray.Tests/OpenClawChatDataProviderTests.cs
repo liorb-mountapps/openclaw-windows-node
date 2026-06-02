@@ -2140,6 +2140,33 @@ public class OpenClawChatDataProviderTests
     }
 
     [Fact]
+    public async Task KeylessEvents_DiagnosticResetsOnReconnect()
+    {
+        // The one-shot guard should be reset when the gateway reconnects so
+        // that a still-broken gateway surfaces the notification again in the
+        // new session instead of staying silent forever.
+        var (bridge, provider, _, notifications) = CreateConnectedProviderWithNotifications("agent:main:main");
+        await provider.LoadAsync();
+
+        // First keyless event — diagnostic fires once.
+        bridge.RaiseChat(new ChatMessageInfo { SessionKey = "", Role = "assistant", Text = "pre-reconnect drop" });
+        Assert.Single(notifications, n => n.Title == "Chat_Notification_KeylessEventDropped");
+
+        // Simulate gateway disconnect + reconnect.
+        bridge.RaiseStatus(ConnectionStatus.Disconnected);
+        bridge.HasHandshakeSnapshot = true;
+        bridge.MainSessionKey = "agent:main:main";
+        bridge.RaiseStatus(ConnectionStatus.Connected);
+        bridge.RaiseSessions(Array.Empty<SessionInfo>());
+
+        // After reconnect, the same keyless-event drop should fire the diagnostic again.
+        bridge.RaiseChat(new ChatMessageInfo { SessionKey = "", Role = "assistant", Text = "post-reconnect drop" });
+        Assert.Equal(2, notifications.Count(n => n.Title == "Chat_Notification_KeylessEventDropped"));
+        Assert.DoesNotContain(notifications, n =>
+            (n.Title?.Contains("drop") ?? false) && n.Title != "Chat_Notification_KeylessEventDropped");
+    }
+
+    [Fact]
     public async Task AgentEvent_WithEmptySessionKey_IsDroppedAndDiagnosed()
     {
         var (bridge, provider, snapshots, notifications) = CreateConnectedProviderWithNotifications("agent:main:main");
